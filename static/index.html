@@ -27,7 +27,17 @@ small{color:var(--muted)}
 <label for="custom">Custom words or phrases</label>
 <textarea id="custom" placeholder="One word or phrase per line"></textarea>
 <small>Matching is case-insensitive.</small>
-<div class="row"><input id="auto" type="checkbox" checked><label for="auto">Automatically censor common profanity</label></div>
+<div class="row">
+  <input id="auto" type="checkbox" checked>
+  <label for="auto">Automatically censor common profanity</label>
+</div>
+
+<label for="censorMode">Censor sound</label>
+<select id="censorMode">
+  <option value="bleep" selected>Bleep</option>
+  <option value="mute">Mute</option>
+</select>
+
 <button id="submit" type="submit">Censor Video</button>
 <div id="status" class="status"></div>
 <a id="download" class="download">Download Censored Video</a>
