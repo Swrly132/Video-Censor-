@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video Censor</title>
+<style>
+:root{color-scheme:dark;--bg:#0d0d0f;--panel:#16161b;--line:#2a2a31;--text:#f4f4f5;--muted:#9c9ca7;--accent:#ef4444}
+*{box-sizing:border-box} body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;display:flex;justify-content:center;padding:36px 18px}
+.wrap{width:min(720px,100%)} h1{font-size:clamp(2rem,6vw,3.6rem);margin:0 0 8px}.sub{color:var(--muted);line-height:1.5}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px}
+label{display:block;font-weight:700;margin:16px 0 8px} input[type=file],textarea{width:100%;border:1px solid var(--line);background:#101014;color:var(--text);border-radius:12px;padding:13px}
+textarea{min-height:130px}.row{display:flex;gap:10px;align-items:center;margin:16px 0}.row label{margin:0}
+button{width:100%;border:0;border-radius:12px;padding:14px;font-size:1rem;font-weight:800;background:var(--accent);color:white}
+button:disabled{opacity:.55}.status{margin-top:16px;color:var(--muted);min-height:24px}.download{display:none;margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:12px;text-align:center;color:white;text-decoration:none;font-weight:800}
+small{color:var(--muted)}
+</style>
+</head>
+<body>
+<main class="wrap">
+<h1>Video Censor</h1>
+<p class="sub">Upload a video, automatically catch profanity, add your own words or phrases, and download a muted version.</p>
+<section class="card">
+<form id="form">
+<label for="video">Video</label>
+<input id="video" type="file" accept="video/*" required>
+<label for="custom">Custom words or phrases</label>
+<textarea id="custom" placeholder="One word or phrase per line"></textarea>
+<small>Matching is case-insensitive.</small>
+<div class="row"><input id="auto" type="checkbox" checked><label for="auto">Automatically censor common profanity</label></div>
+<button id="submit" type="submit">Censor Video</button>
+<div id="status" class="status"></div>
+<a id="download" class="download">Download Censored Video</a>
+</form>
+</section>
+</main>
+<script>
+const form=document.getElementById("form"),button=document.getElementById("submit"),statusEl=document.getElementById("status"),download=document.getElementById("download");
+form.addEventListener("submit",async(e)=>{
+e.preventDefault();download.style.display="none";
+const video=document.getElementById("video").files[0]; if(!video)return;
+const fd=new FormData(); fd.append("video",video); fd.append("custom_words",document.getElementById("custom").value); fd.append("auto_profanity",document.getElementById("auto").checked?"true":"false");
+button.disabled=true; statusEl.textContent="Uploading and processing…";
+try{
+const res=await fetch("/api/censor",{method:"POST",body:fd}); const data=await res.json();
+if(!res.ok)throw new Error(data.error||"Processing failed.");
+statusEl.textContent=`Done. Muted ${data.censored_sections} detected section(s).`;
+download.href=data.download_url; download.style.display="block";
+}catch(err){statusEl.textContent="Error: "+err.message}
+finally{button.disabled=false}
+});
+</script>
+</body>
+</html>
