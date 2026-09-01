@@ -17,7 +17,7 @@ DEFAULT_BLOCKED_WORDS = {
     "damn", "cunt", "bastard", "dick", "piss"
 }
 
-model = WhisperModel("small", device="cpu", compute_type="int8")
+model = WhisperModel("tiny", device="cpu", compute_type="int8")
 
 def norm(text):
     return re.sub(r"[^a-z0-9']+", "", text.lower()).strip()
