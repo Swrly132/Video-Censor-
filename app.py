@@ -97,7 +97,7 @@ def transcribe_words(video_path):
         gc.collect()
         audio_path.unlink(missing_ok=True)
 
-def censor_video(input_path, output_path, intervals):
+def censor_video(input_path, output_path, intervals, mode="bleep"):
     if not intervals:
         subprocess.run(
             ["ffmpeg", "-y", "-i", str(input_path), "-c", "copy", str(output_path)],
@@ -105,14 +105,52 @@ def censor_video(input_path, output_path, intervals):
         )
         return
 
-    enable_expr = "+".join(f"between(t,{s:.3f},{e:.3f})" for s, e in intervals)
-    audio_filter = f"volume=enable='{enable_expr}':volume=0"
-
-    subprocess.run(
-        ["ffmpeg", "-y", "-i", str(input_path), "-c:v", "copy",
-         "-af", audio_filter, "-c:a", "aac", "-b:a", "192k", str(output_path)],
-        check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    enable_expr = "+".join(
+        f"between(t,{s:.3f},{e:.3f})"
+        for s, e in intervals
     )
+
+    if mode == "mute":
+        audio_filter = f"volume=enable='{enable_expr}':volume=0"
+
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", str(input_path),
+                "-c:v", "copy",
+                "-af", audio_filter,
+                "-c:a", "aac",
+                "-b:a", "192k",
+                str(output_path)
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+
+    else:
+        filter_complex = (
+            f"[0:a]volume='if({enable_expr},0,1)':eval=frame[original];"
+            f"sine=frequency=1000:sample_rate=48000,"
+            f"volume='if({enable_expr},0.35,0)':eval=frame[beep];"
+            f"[original][beep]amix=inputs=2:duration=first:dropout_transition=0[aout]"
+        )
+
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", str(input_path),
+                "-filter_complex", filter_complex,
+                "-map", "0:v:0",
+                "-map", "[aout]",
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                str(output_path)
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
 
 @app.get("/")
 def index():
