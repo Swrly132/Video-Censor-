@@ -1,4 +1,4 @@
-import os, re, uuid, subprocess
+import os, re, uuid, subprocess, gc
 from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from faster_whisper import WhisperModel
@@ -17,7 +17,6 @@ DEFAULT_BLOCKED_WORDS = {
     "damn", "cunt", "bastard", "dick", "piss"
 }
 
-model = WhisperModel("tiny", device="cpu", compute_type="int8")
 
 def norm(text):
     return re.sub(r"[^a-z0-9']+", "", text.lower()).strip()
@@ -51,12 +50,52 @@ def build_intervals(words, blocked_terms):
     return [(s, e) for s, e in merged]
 
 def transcribe_words(video_path):
-    segments, _ = model.transcribe(str(video_path), word_timestamps=True, vad_filter=True)
-    words = []
-    for seg in segments:
-        for w in (seg.words or []):
-            words.append({"word": w.word, "start": float(w.start), "end": float(w.end)})
-    return words
+    audio_path = video_path.with_suffix(".wav")
+
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-i", str(video_path),
+        "-vn",
+        "-ac", "1",
+        "-ar", "16000",
+        "-c:a", "pcm_s16le",
+        str(audio_path)
+    ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    model = WhisperModel(
+        "tiny.en",
+        device="cpu",
+        compute_type="int8",
+        cpu_threads=1,
+        num_workers=1
+    )
+
+    try:
+        segments, _ = model.transcribe(
+            str(audio_path),
+            word_timestamps=True,
+            vad_filter=True,
+            beam_size=1,
+            best_of=1,
+            condition_on_previous_text=False
+        )
+
+        words = []
+
+        for seg in segments:
+            for w in (seg.words or []):
+                words.append({
+                    "word": w.word,
+                    "start": float(w.start),
+                    "end": float(w.end)
+                })
+
+        return words
+
+    finally:
+        del model
+        gc.collect()
+        audio_path.unlink(missing_ok=True)
 
 def censor_video(input_path, output_path, intervals):
     if not intervals:
